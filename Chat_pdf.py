@@ -10,6 +10,7 @@ from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
 import tempfile
 from duckduckgo_search import DDGS
+import time
 
 # Disable warnings and info logs
 warnings.filterwarnings("ignore")
@@ -37,12 +38,21 @@ for message in st.session_state.messages:
     st.chat_message(message['role']).markdown(message['content'])
 
 # Function for web search using DuckDuckGo
-def web_search(query, max_results=4):
-    with DDGS() as ddgs:
-        results = ddgs.text(query, max_results=max_results)
-        return "\n".join(
-            [f"- Title: {r['title']}\n  Summary: {r['body']}\n  URL: {r['href']}" for r in results]
-        )
+def web_search(query, max_results=4, retries=3, delay=2):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0"
+    }
+    for attempt in range(retries):
+        try:
+            with DDGS(headers=headers) as ddgs:
+                results = ddgs.text(query, max_results=max_results)
+                return "\n".join(
+                    [f"- Title: {r['title']}\n  Summary: {r['body']}\n  URL: {r['href']}" for r in results]
+                )
+        except Exception as e:
+            time.sleep(delay)
+            if attempt == retries - 1:
+                return f"Web search failed after {retries} attempts: {e}"
 
 # Function to create vectorstore from PDF
 def get_vectorstore(uploaded_file=None):
